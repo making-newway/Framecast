@@ -9,10 +9,11 @@ Framecast converts binary file data into pixel values — `1` becomes a white pi
 ## How it works
 
 ```
-┌─────────────┐     encode      ┌─────────────────────┐     decode      ┌─────────────┐
-│  Any file   │ ─────────────▶  │  Lossless .avi      │ ─────────────▶  │  Any file   │
-│  (.zip etc) │                 │  (B&W pixel frames) │                 │  (restored) │
-└─────────────┘                 └─────────────────────┘                 └─────────────┘
+┌─────────────┐              ┌──────────────────┐              ┌─────────────┐
+│  Any file   │              │  Lossless .avi   │              │  Any file   │
+│             │──[ encode ]─▶│  1 bit per pixel │──[ decode ]─▶│  restored   │
+│ .zip  .exe  │              │  FFV1 lossless   │              │ MD5 verified│
+└─────────────┘              └──────────────────┘              └─────────────┘
 ```
 
 **Frame layout**
