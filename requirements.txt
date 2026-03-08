@@ -2,3 +2,4 @@ colorama==0.4.6
 numpy==2.2.6
 opencv-python==4.13.0.92
 tqdm==4.67.3
+zstandard==0.25.0
