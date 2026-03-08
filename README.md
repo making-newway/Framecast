@@ -1,74 +1,122 @@
 # Framecast
 
-**Encode any file into a lossless black-and-white video. Decode it back to the exact original.**
+**Encode any file or folder into a lossless RGB video. Decode it back to the exact original.**
 
-Framecast converts binary file data into pixel values — `1` becomes a white pixel, `0` becomes a black pixel — and writes them frame by frame into a lossless `.avi` video. The original file can be perfectly reconstructed from the video alone, verified by MD5 checksum.
+Framecast converts binary file data into RGB pixel values — every 3 consecutive bytes become one pixel — and writes them frame by frame into a lossless `.avi` video. The original file or folder can be perfectly reconstructed from the video alone, verified by MD5 checksum. Designed for large file distribution via Google Drive or any platform that preserves file integrity.
 
 ---
 
 ## How it works
 
 ```
-+-------------+             +------------------+             +--------------+
-|  Any file   |             |  Lossless .avi   |             |  Any file    |
-| .zip  .exe  |--[encode]-->|  1 bit per pixel |--[decode]-->|  restored    |
-| .mp3  .pdf  |             |  FFV1 lossless   |             | MD5 verified |
-+-------------+             +------------------+             +--------------+
++--------------------+             +----------------------+             +--------------------+
+|  Any file or       |             |  Lossless .avi       |             |  Any file or       |
+|  folder            |--[encode]-->|  3 bytes per pixel   |--[decode]-->|  folder restored   |
+|  .zip  .exe  dir/  |             |  FFV1 lossless       |             |  MD5 verified      |
++--------------------+             +----------------------+             +--------------------+
 ```
 
 **Frame layout**
 
 ```
-Row 0–37    │  Info overlay bar  (frame number, resolution, bit density)
-Row 38–719  │  Binary data pixels  (white = 1, black = 0)
+Row 0-37    |  Info overlay bar  (frame number, resolution)
+Row 38-H    |  RGB data pixels   (3 bytes per pixel)
 ```
 
-**Frame 0** of every video is a dedicated metadata frame storing the original filename, MIME type, and exact file size as pixel data. Frames 1–N each hold one chunk of file data. The decoder reads the metadata frame first, then reconstructs the file from the data frames using `numpy.packbits` for fast bit-to-byte conversion.
+**Frame 0** of every part is a metadata frame storing filename, MIME type, file size, source type and compression flag. Frames 1-N each hold one chunk of file data packed as RGB pixels.
 
 ---
 
-## Resolutions
+## Key numbers
 
-| Label  | Resolution  | Data per frame  |
-|--------|-------------|-----------------|
-| 4K     | 3840 × 2160 | 1,018,560 bytes |
-| 2K     | 2560 × 1440 | 451,840 bytes   |
-| 1080p  | 1920 × 1080 | 253,440 bytes   |
-| 720p   | 1280 × 720  | 109,120 bytes   |
-| 480p   | 854 × 480   | 49,980 bytes    |
+| Resolution | Data per frame  | 6GB file → parts |
+|------------|-----------------|------------------|
+| 4K         | ~23.3 MB        | ~2 parts @ 4GB   |
+| 2K         | ~10.3 MB        | ~4 parts @ 4GB   |
+| 1080p      | ~5.8 MB         | ~8 parts @ 4GB   |
+| 720p       | ~2.5 MB         | ~18 parts @ 4GB  |
+| 480p       | ~1.1 MB         | ~40 parts @ 4GB  |
 
-Each pixel stores 1 bit, so data capacity = `width × (height − 38) ÷ 8` bytes per frame.
+**Video size vs original file size**
+
+| Encoding      | Bytes per pixel | Size ratio |
+|---------------|-----------------|------------|
+| Old 1-bit     | 1 bit           | ~5.5×      |
+| RGB (current) | 3 bytes         | ~1.0×      |
 
 ---
 
 ## Requirements
 
+```bash
+pip install opencv-python numpy tqdm zstandard
 ```
-pip install opencv-python numpy tqdm
+or
+```bash
+pip install -r requirements.txt
 ```
 
-OpenCV must support the `FFV1` or `HFYU` lossless codec (standard `opencv-python` on Windows includes both).
+OpenCV must support `FFV1` or `HFYU` lossless codec — standard `opencv-python` on Windows includes both.
+
+> Use [VLC](https://www.videolan.org/) to play `.avi` files. Do **not** re-encode or convert to `.mp4` — pixel values will be destroyed and the file cannot be recovered.
 
 ---
 
 ## Usage
 
-Edit the config block at the top of `main.py`:
+Edit `parameters.json` then run:
 
-```python
-FILE_PATH   = r"path\to\your\file"
-OUTPUT_DIR  = r"path\to\output\folder"
-CHUNK_LABEL = '720p'   # 4K | 2K | 1080p | 720p | 480p
-FPS         = 30
-OVERLAY     = True
-```
-
-Run the encoder:
 ```bash
 python main.py
 ```
 
-Choose `1` to encode, `2` to decode.
+### Encode a file
+
+```json
+{
+    "action"      : "encode",
+    "file_path"   : "D:\\path\\to\\file.zip",
+    "output_dir"  : "D:\\path\\to\\output",
+    "chunk_label" : "4K",
+    "fps"         : 30,
+    "overlay"     : true,
+    "compress"    : false
+}
+```
+
+### Encode a folder
+
+```json
+{
+    "action"      : "encode",
+    "file_path"   : "D:\\path\\to\\MyFolder",
+    "output_dir"  : "D:\\path\\to\\output",
+    "chunk_label" : "4K",
+    "fps"         : 30,
+    "overlay"     : true,
+    "compress"    : false
+}
+```
+
+Framecast automatically zips the folder before encoding and restores it as a folder after decoding.
+
+### Decode
+
+Point `file_path` at the output folder, a `_manifest.json`, or a single `.avi`:
+
+```json
+{
+    "action"      : "decode",
+    "file_path"   : "D:\\path\\to\\output",
+    "output_dir"  : "D:\\path\\to\\restored",
+    "chunk_label" : "4K",
+    "fps"         : 30,
+    "overlay"     : true,
+    "compress"    : false
+}
+```
+
+Framecast scans the folder automatically — manifest first, single `.avi` fallback.
 
 ---
 
@@ -76,33 +124,81 @@ Choose `1` to encode, `2` to decode.
 
 ```
 Framecast/
-├── config.py           # resolutions, chunk sizes, overlay height
-├── encoder.py          # file → binary stream generator
-├── video_generator.py  # binary stream → lossless .avi frames
-├── pipeline.py         # single-pass encode + video simultaneously
-├── decoder.py          # .avi frames → binary stream → original file
-└── main.py             # entry point
+├── config.py           # resolutions, chunk sizes, part size limit
+├── encoder.py          # file/folder → chunks generator, optional zstd
+├── video_generator.py  # chunks → RGB frames → lossless .avi
+├── pipeline.py         # orchestrates encode, part splitting, manifest
+├── decoder.py          # .avi parts → bytes → restored file/folder
+├── manifest.py         # manifest read/write/verify
+├── logger.py           # appends stats to framecast.log
+├── main.py             # entry point, reads parameters.json
+├── parameters.json     # user config — action, paths, settings
+├── test_output/        # local test output (gitignored)
+│   └── .gitkeep
+└── testing.py          # local test script (gitignored)
 ```
 
 ---
 
-## Decode stats
+## Multi-part output
 
-After decoding, Framecast reports:
+For files larger than 4GB, Framecast automatically splits the output into multiple parts:
 
-- **Timing** — frame read time, bit decode time, total time
-- **Bit-level** — total bits, padding bits, 1-bit density
-- **Per-frame density** — min / max / avg fraction of 1-bits per frame
-- **Integrity** — expected vs actual bytes, MD5 checksum, size match
+```
+output/
+├── MyFile_4K_30fps_part001.avi
+├── MyFile_4K_30fps_part002.avi
+├── MyFile_4K_30fps_part003.avi
+└── MyFile_manifest.json
+```
+
+Each part has its own MD5 checksum stored in the manifest. The decoder verifies each part before writing — a corrupt part is skipped and reported rather than silently writing bad data.
 
 ---
 
-## Important
+## Logging
 
-> ⚠️ The `.avi` file uses lossless compression (FFV1). Do **not** convert it to `.mp4` or any other lossy format before decoding — pixel values will be corrupted and the file cannot be recovered. Use [VLC](https://www.videolan.org/) to play the `.avi` for viewing purposes.
+Every encode and decode run appends to `framecast.log`:
+
+```
+==========================================================
+[2026-03-08 11:59:24]  ENCODE
+==========================================================
+  filename        : Legends ZA.zip
+  file_size_bytes : 6,446,577,831
+  total_parts     : 2
+  total_frames    : 264
+  duration_s      : 8.8
+  total_time_s    : 294.431
+  parts           :
+    [001]  Legends ZA_4K_30fps_part001.avi  (4,277,952,000 bytes | 175 frames | MD5: 89033f6b777e...)
+    [002]  Legends ZA_4K_30fps_part002.avi  (2,168,625,831 bytes | 89 frames  | MD5: d92c004bcc0b...)
+==========================================================
+```
+
+---
+
+## Compression
+
+Set `"compress": true` in `parameters.json` to enable zstd pre-compression before encoding.
+
+> Only effective on uncompressed source files such as `.txt`, `.csv`, `.wav`, `.bmp`, or raw database dumps. Has no effect on already-compressed files like `.zip`, `.mp4`, or `.exe`.
+
+---
+
+## Data integrity
+
+| Risk                        | Protection                                      |
+|-----------------------------|-------------------------------------------------|
+| Corrupt part download       | Per-part MD5 verified before writing            |
+| Missing part                | Pre-allocated output file, zero-filled hole     |
+| Encoding interrupted        | Manifest written only after all parts complete  |
+| Last frame padding          | `f.truncate(exact_filesize)` after decode       |
+| Metadata frame corrupted    | Manifest JSON used as fallback                  |
+| RAM overflow on large files | One frame at a time streamed directly to disk   |
 
 ---
 
 ## GitHub description
 
-> Encode any file into a lossless black-and-white video — one bit per pixel. Decode it back to the exact original with MD5 verification.
+> Encode any file or folder into a lossless RGB video — 3 bytes per pixel, split into 4GB parts. Decode back to the exact original with per-part MD5 verification.

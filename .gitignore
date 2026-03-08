@@ -141,6 +141,7 @@ celerybeat.pid
 env/
 venv/
 ENV/
+/checker.py
 env.bak/
 venv.bak/
 
@@ -205,3 +206,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Test output folder
+test/
+
+# Testing script
+testing.py
+
+# Logger
+
+*.log

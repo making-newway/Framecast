@@ -1,0 +1,9 @@
+{
+    "action"      : "decode",
+    "file_path"   : "E:\\Visual\\File Transfer\\data",
+    "output_dir"  : "E:\\Visual\\Framecast\\test",
+    "chunk_label" : "4K",
+    "fps"         : 30,
+    "overlay"     : true,
+    "compress"    : false
+}

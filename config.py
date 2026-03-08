@@ -1,4 +1,6 @@
-OVERLAY_HEIGHT_PX   = 38
+OVERLAY_HEIGHT_PX    = 38
+ENCODING_MODE        = 'RGB'
+MAX_PART_SIZE_BYTES  = 4 * 1024 * 1024 * 1024   # 4GB per part
 
 FRAME_SIZES = {
     '4K'    : (3840, 2160),
@@ -8,10 +10,11 @@ FRAME_SIZES = {
     '480p'  : ( 854,  480),
 }
 
+# RGB: 3 bytes per pixel, data rows only
 CHUNK_SIZES = {
-    label: w * (h - OVERLAY_HEIGHT_PX) // 8
+    label: w * (h - OVERLAY_HEIGHT_PX) * 3
     for label, (w, h) in FRAME_SIZES.items()
 }
 
-DEFAULT_CHUNK_LABEL = '720p'
-DEFAULT_FPS         = 30
+DEFAULT_CHUNK_LABEL  = '4K'
+DEFAULT_FPS          = 30
